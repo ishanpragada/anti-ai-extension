@@ -1,0 +1,793 @@
+.think-first-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(8px);
+  z-index: 999999;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.think-first-overlay.think-first-hidden {
+  display: none;
+}
+
+.think-first-container {
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  margin-bottom: 60px;
+  margin-right: 20px;
+  animation: slideIn 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 200px;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.think-first-header {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: #000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+
+.think-first-content {
+  margin-bottom: 20px;
+  color: #000;
+  font-size: 14px;
+  line-height: 1.5;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.think-first-questions {
+  margin: 16px 0;
+  padding: 16px;
+  background: #f8f9fc;
+  border-radius: 12px;
+  border: 1px solid #e8eaf5;
+}
+
+.think-first-questions p {
+  margin: 8px 0;
+  color: #000;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+  font-size: 13px;
+}
+
+.think-first-questions p::before {
+  content: "•";
+  color: #4a86e8;
+  font-weight: bold;
+}
+
+.think-first-prompt-preview {
+  background: #f8f9fc;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 12px 0;
+  color: #000;
+  border: 1px solid #e8eaf5;
+  font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+#think-first-notes {
+  width: 100%;
+  min-height: 140px;
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid #e8eaf5;
+  border-radius: 12px;
+  resize: vertical;
+  color: #000;
+  background: white;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+}
+
+#think-first-notes:focus {
+  outline: none;
+  border-color: #4a86e8;
+  box-shadow: 0 0 0 2px rgba(74, 134, 232, 0.1);
+}
+
+#think-first-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-shrink: 0;
+}
+
+#think-first-continue,
+#think-first-cancel {
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+#think-first-continue {
+  background: #4a86e8;
+  color: white;
+}
+
+#think-first-continue:hover {
+  background: #3b78e7;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74, 134, 232, 0.2);
+}
+
+#think-first-cancel {
+  background: #f1f3f4;
+  color: #000;
+}
+
+#think-first-cancel:hover {
+  background: #e8eaed;
+  transform: translateY(-1px);
+}
+
+/* Brain icon floating button */
+#think-first-brain {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  background: #4a86e8;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  transition: transform 0.2s ease;
+}
+
+#think-first-brain:hover {
+  transform: scale(1.1);
+}
+
+/* Settings panel */
+.think-first-settings {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 400px;
+  height: 500px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #000;
+  transition: opacity 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.think-first-settings.think-first-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.think-first-settings h3 {
+  margin: 0;
+  padding: 20px 20px 16px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #000;
+  flex-shrink: 0;
+}
+
+.think-first-settings .tab-buttons {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  border-bottom: 1px solid #eee;
+  padding: 0 20px 8px;
+  flex-shrink: 0;
+}
+
+.think-first-settings .tab-button {
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.think-first-settings .tab-button:hover {
+  background: #f5f5f5;
+  color: #000;
+}
+
+.think-first-settings .tab-button.active {
+  background: #eef3ff;
+  color: #4a86e8;
+  font-weight: 500;
+}
+
+.think-first-settings .tab {
+  display: none;
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.think-first-settings .tab.active {
+  display: block;
+}
+
+.think-first-settings .section {
+  margin-bottom: 24px;
+}
+
+.think-first-settings .section:last-child {
+  margin-bottom: 0;
+}
+
+.think-first-settings h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+}
+
+.think-first-settings .stats {
+  margin-bottom: 24px;
+}
+
+.think-first-settings .stats p {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.think-first-settings .stat-label {
+  color: #666;
+  font-size: 14px;
+}
+
+.think-first-settings .stat-value {
+  font-weight: 500;
+  color: #000;
+}
+
+.think-first-settings .controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.think-first-settings select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #000;
+  background: white;
+  cursor: pointer;
+}
+
+.think-first-settings select:focus {
+  outline: none;
+  border-color: #4a86e8;
+}
+
+.think-first-settings .mode-description {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.think-first-settings button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #f5f5f5;
+  color: #000;
+}
+
+.think-first-settings button:hover {
+  background: #eee;
+}
+
+.think-first-settings .history-list {
+  max-height: none;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.think-first-settings .history-item {
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s ease;
+}
+
+.think-first-settings .history-item:hover {
+  background-color: #f8f9fa;
+}
+
+.think-first-settings .history-item:last-child {
+  border-bottom: none;
+}
+
+.think-first-settings .history-item .timestamp {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.think-first-settings .history-item .timestamp::before {
+  content: "🕒";
+  font-size: 11px;
+}
+
+.think-first-settings .history-item .prompt {
+  font-size: 14px;
+  color: #000;
+  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Add custom scrollbar for the history list */
+.think-first-settings .history-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.think-first-settings .history-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 8px;
+}
+
+.think-first-settings .history-list::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 8px;
+}
+
+.think-first-settings .history-list::-webkit-scrollbar-thumb:hover {
+  background: #bbb;
+}
+
+/* Hide ChatGPT's response area when intervention is active */
+.think-first-active main {
+  filter: blur(10px);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.1;
+}
+
+.think-first-suggestion {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f0f7ff;
+  border-radius: 12px;
+  border: 1px solid #cce4ff;
+}
+
+.think-first-suggestion h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2970ff;
+}
+
+.think-first-prompt-suggestion {
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e6f0ff;
+  font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1a56db;
+  margin-bottom: 12px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.think-first-suggestion-explanation {
+  font-size: 14px;
+  color: #4b5563;
+  margin: 12px 0;
+  line-height: 1.5;
+}
+
+.think-first-button-secondary {
+  background: #2970ff;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.think-first-button-secondary:hover {
+  background: #1a56db;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(41, 112, 255, 0.2);
+}
+
+.think-first-notification {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  background: #4a86e8;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: slideInUp 0.3s ease-out;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.think-first-notification.think-first-hidden {
+  display: none;
+}
+
+/* Points Animation */
+@keyframes pointsPopup {
+  0% {
+    transform: scale(0.8) translateY(0);
+    opacity: 0;
+  }
+  20% {
+    transform: scale(1.2) translateY(-20px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(-40px);
+    opacity: 0;
+  }
+}
+
+.points-animation {
+  position: fixed;
+  bottom: 80px;
+  right: 44px;
+  color: #4a86e8;
+  font-weight: bold;
+  font-size: 18px;
+  pointer-events: none;
+  z-index: 10001;
+  animation: pointsPopup 1.5s ease-out forwards;
+}
+
+/* Enhanced Brain Icon Animations */
+@keyframes brainPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 4px 16px rgba(74, 134, 232, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+#think-first-brain.pulse {
+  animation: brainPulse 1s ease-in-out;
+}
+
+/* Enhanced Button Animations */
+#think-first-continue,
+#think-first-cancel,
+.think-first-settings button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#think-first-continue:active,
+#think-first-cancel:active,
+.think-first-settings button:active {
+  transform: scale(0.95);
+}
+
+/* Enhanced Tab Switching Animation */
+.think-first-settings .tab {
+  transition: opacity 0.2s ease-out;
+  opacity: 0;
+  display: none;
+}
+
+.think-first-settings .tab.active {
+  display: block;
+  opacity: 1;
+}
+
+/* Enhanced Mode Selection Animation */
+.think-first-settings select {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.think-first-settings select:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Enhanced Notification Animation */
+@keyframes slideInUpNotification {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  10% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  90% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+}
+
+.think-first-notification {
+  animation: slideInUpNotification 3s ease-out forwards;
+}
+
+/* Stats Update Animation */
+@keyframes statUpdate {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+    color: #4a86e8;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.stat-value.updating {
+  animation: statUpdate 0.5s ease-out;
+}
+
+/* Brain Celebration Animations */
+@keyframes brainDance {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  25% {
+    transform: scale(1.3) rotate(-15deg);
+  }
+  50% {
+    transform: scale(1.3) rotate(15deg);
+  }
+  75% {
+    transform: scale(1.2) rotate(-8deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.brain-sparkle-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 100px;
+  height: 100px;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.brain-sparkle {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  font-size: 24px;
+  pointer-events: none;
+  z-index: 9999;
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.5));
+}
+
+@keyframes sparkleOne {
+  0% {
+    transform: translate(20px, 20px) scale(0);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(-10px, -30px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-30px, -60px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes sparkleTwo {
+  0% {
+    transform: translate(20px, 20px) scale(0);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(50px, -20px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(70px, -40px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes sparkleThree {
+  0% {
+    transform: translate(20px, 20px) scale(0);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(-20px, 40px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-40px, 60px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes sparkleFour {
+  0% {
+    transform: translate(20px, 20px) scale(0);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(40px, 30px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(60px, 50px) scale(0);
+    opacity: 0;
+  }
+}
+
+.brain-sparkle:nth-child(1) {
+  animation: sparkleOne 1.2s ease-out forwards;
+}
+
+.brain-sparkle:nth-child(2) {
+  animation: sparkleTwo 1.2s ease-out forwards;
+  animation-delay: 0.1s;
+}
+
+.brain-sparkle:nth-child(3) {
+  animation: sparkleThree 1.2s ease-out forwards;
+  animation-delay: 0.2s;
+}
+
+.brain-sparkle:nth-child(4) {
+  animation: sparkleFour 1.2s ease-out forwards;
+  animation-delay: 0.3s;
+}
+
+#think-first-brain.celebrate {
+  animation: brainDance 1s ease-in-out;
+  transform-origin: center center;
+}
+
+/* Add graph container styles */
+.think-first-settings .graph-container {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid #e8eaf5;
+  height: 200px;
+}
+
+/* Bad decision animations */
+@keyframes badShake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes badFlash {
+  0% { background: #4a86e8; }
+  50% { background: #ff4444; }
+  100% { background: #4a86e8; }
+}
+
+#think-first-brain.bad-decision {
+  animation: badShake 0.5s ease-in-out, badFlash 0.5s ease-in-out;
+}
+
+.points-animation.negative {
+  color: #ff4444;
+}
+  

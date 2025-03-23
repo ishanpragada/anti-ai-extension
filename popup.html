@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ThinkFirst</title>
+  <script src="chart.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      width: 340px;
+      padding: 20px;
+      margin: 0;
+      color: #000;
+    }
+    
+    h1 {
+      font-size: 22px;
+      color: #000;
+      margin: 0 0 20px 0;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .section {
+      margin-bottom: 24px;
+    }
+    
+    h2 {
+      font-size: 16px;
+      color: #000;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    
+    .stats {
+      background-color: #f8f9fc;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      border: 1px solid #e8eaf5;
+    }
+    
+    .stats p {
+      margin: 8px 0;
+      color: #555;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+    }
+    
+    .stat-label {
+      font-weight: 500;
+    }
+    
+    .stat-value {
+      font-weight: 600;
+      color: #000;
+    }
+    
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    button, select {
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 14px;
+      border: 1px solid #e8eaf5;
+      background-color: white;
+      color: #000;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 40px;
+    }
+    
+    button:hover, select:hover {
+      border-color: #4a86e8;
+      background-color: #f8f9fc;
+    }
+    
+    button.primary {
+      background-color: #4a86e8;
+      color: white;
+      border: none;
+      font-weight: 600;
+    }
+    
+    button.primary:hover {
+      background-color: #3b78e7;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(74, 134, 232, 0.2);
+    }
+    
+    .tab-buttons {
+      display: flex;
+      margin-bottom: 16px;
+      background: #f8f9fc;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid #e8eaf5;
+    }
+    
+    .tab-button {
+      flex-grow: 1;
+      padding: 8px 12px;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: #555;
+    }
+    
+    .tab-button.active {
+      background: white;
+      color: #4a86e8;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+    
+    .tab {
+      display: none;
+    }
+    
+    .tab.active {
+      display: block;
+      animation: fadeIn 0.2s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    
+    .history-item {
+      padding: 12px;
+      border-bottom: 1px solid #e8eaf5;
+      font-size: 13px;
+    }
+    
+    .history-item:last-child {
+      border-bottom: none;
+    }
+    
+    .history-item .timestamp {
+      color: #888;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    
+    .history-item .prompt {
+      color: #000;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.4;
+    }
+    
+    .history-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #e8eaf5;
+      border-radius: 12px;
+      background: white;
+    }
+    
+    .history-list::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .history-list::-webkit-scrollbar-track {
+      background: #f8f9fc;
+      border-radius: 4px;
+    }
+    
+    .history-list::-webkit-scrollbar-thumb {
+      background: #ddd;
+      border-radius: 4px;
+    }
+    
+    .history-list::-webkit-scrollbar-thumb:hover {
+      background: #ccc;
+    }
+
+    .mode-description {
+      font-size: 13px;
+      color: #666;
+      margin-top: 8px;
+      padding: 12px;
+      background: #f8f9fc;
+      border-radius: 8px;
+      border: 1px solid #e8eaf5;
+    }
+    
+    .graph-container {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      border: 1px solid #e8eaf5;
+      height: 200px;
+    }
+    
+    .gamification-container {
+      background: #f8f9fc;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      border: 1px solid #e8eaf5;
+    }
+    
+    .level-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .level-badge {
+      width: 48px;
+      height: 48px;
+      background: #4a86e8;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    
+    .level-details {
+      flex: 1;
+    }
+    
+    .level-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .progress-bar {
+      height: 8px;
+      background: #e8eaf5;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: #4a86e8;
+      transition: width 0.3s ease;
+    }
+    
+    .streak-container {
+      display: flex;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    
+    .streak-box {
+      flex: 1;
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .streak-number {
+      font-size: 24px;
+      font-weight: bold;
+      color: #4a86e8;
+      margin-bottom: 4px;
+    }
+    
+    .streak-label {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .daily-goal {
+      margin-top: 16px;
+      padding: 16px;
+      background: white;
+      border-radius: 8px;
+    }
+    
+    .daily-goal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .daily-goal-progress {
+      height: 8px;
+      background: #e8eaf5;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .daily-goal-fill {
+      height: 100%;
+      background: #4a86e8;
+      transition: width 0.3s ease;
+    }
+    
+    .tab-content {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧠 ThinkFirst</h1>
+  
+  <div class="tab-buttons">
+    <button id="tab-stats" class="tab-button active">Stats</button>
+    <button id="tab-settings" class="tab-button">Settings</button>
+    <button id="tab-history" class="tab-button">History</button>
+  </div>
+  
+  <div id="tab-content-stats" class="tab active">
+    <div class="gamification-container">
+      <div class="level-info">
+        <div class="level-badge">
+          <span id="current-level">1</span>
+        </div>
+        <div class="level-details">
+          <div class="level-title">Level <span id="level-number">1</span></div>
+          <div class="progress-bar">
+            <div id="level-progress" class="progress-fill" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="streak-container">
+        <div class="streak-box">
+          <div class="streak-number" id="current-streak">0</div>
+          <div class="streak-label">Current Streak</div>
+        </div>
+        <div class="streak-box">
+          <div class="streak-number" id="longest-streak">0</div>
+          <div class="streak-label">Longest Streak</div>
+        </div>
+      </div>
+      
+      <div class="daily-goal">
+        <div class="daily-goal-header">
+          <span>Daily Goal</span>
+          <span id="daily-goal-progress">0/5</span>
+        </div>
+        <div class="daily-goal-progress">
+          <div id="daily-goal-fill" class="daily-goal-fill" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="graph-container">
+      <canvas id="usage-chart"></canvas>
+    </div>
+    
+    <div class="stats">
+      <p>
+        <span class="stat-label">Today's AI usage</span>
+        <span id="today-usage" class="stat-value">0</span>
+      </p>
+      <p>
+        <span class="stat-label">This week</span>
+        <span id="week-usage" class="stat-value">0</span>
+      </p>
+      <p>
+        <span class="stat-label">This month</span>
+        <span id="month-usage" class="stat-value">0</span>
+      </p>
+      <p>
+        <span class="stat-label">Thinking points</span>
+        <span id="thinking-points" class="stat-value">0</span>
+      </p>
+      <p>
+        <span class="stat-label">Current mode</span>
+        <span id="current-mode" class="stat-value">Normal</span>
+      </p>
+    </div>
+  </div>
+  
+  <div id="tab-content-settings" class="tab">
+    <div class="section">
+      <h2>Daily Goal</h2>
+      <div class="controls">
+        <select id="daily-goal-select">
+          <option value="3">Easy - 3 points</option>
+          <option value="5">Normal - 5 points</option>
+          <option value="10">Hard - 10 points</option>
+          <option value="20">Expert - 20 points</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>Monitoring Mode</h2>
+      <div class="controls">
+        <select id="mode-select">
+          <option value="relaxed">Relaxed - Just track usage</option>
+          <option value="normal">Normal - Intervene on lazy usage</option>
+          <option value="strict">Strict - Intervene on all usage</option>
+        </select>
+        <div class="mode-description" id="mode-description">
+          Normal mode will intervene when it detects lazy prompts like "solve this for me" or "write code for this". It encourages you to think before asking AI for help.
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>Reset Options</h2>
+      <div class="controls">
+        <button id="reset-all-stats">Reset All Statistics</button>
+        <button id="reset-thinking-points">Reset Thinking Points</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="tab-content-history" class="tab">
+    <div class="section">
+      <h2>Recent AI Prompts</h2>
+      <div id="history-list" class="history-list">
+        <!-- History items will be inserted here -->
+      </div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
+  
