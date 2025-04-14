@@ -3,7 +3,7 @@
     "name": "ThinkFirst",
     "version": "1.0",
     "description": "Helps you avoid overreliance on AI by encouraging critical thinking",
-    "permissions": ["storage", "scripting", "tabs", "webNavigation"],
+    "permissions": ["storage", "scripting", "tabs", "webNavigation", "notifications"],
     "host_permissions": [
       "https://chat.openai.com/*",
       "https://chatgpt.com/*",
@@ -21,7 +21,7 @@
       "default_popup": "popup.html"
     },
     "web_accessible_resources": [{
-      "resources": ["chart.min.js"],
+      "resources": ["chart.min.js", "env.js"],
       "matches": ["<all_urls>"]
     }],
     "content_scripts": [

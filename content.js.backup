@@ -10,6 +10,7 @@
   let lastSubmissionTimestamp = 0;
   let lastSubmittedPrompt = "";
   let isSubmitting = false;
+  let currentUser = null;
   
   function debugLog(message, data = null) {
     console.log(`[ThinkFirst] ${message}`, data || '');
@@ -31,12 +32,6 @@
   function safeSendMessage(message) {
     return new Promise((resolve) => {
       try {
-        if (!chrome.runtime || !chrome.runtime.sendMessage) {
-          debugLog('Chrome runtime not available');
-          resolve(null);
-          return;
-        }
-
         chrome.runtime.sendMessage(message, (response) => {
           if (chrome.runtime.lastError) {
             debugLog('Chrome runtime error:', chrome.runtime.lastError);
@@ -68,6 +63,7 @@
     const brainIcon = document.createElement('div');
     brainIcon.id = 'think-first-brain';
     brainIcon.innerHTML = '🧠';
+    brainIcon.title = 'ThinkFirst Settings';
     brainIcon.addEventListener('click', toggleSettings);
     
     const notification = document.createElement('div');
@@ -77,82 +73,81 @@
     const settingsPanel = document.createElement('div');
     settingsPanel.className = 'think-first-settings think-first-hidden';
     settingsPanel.innerHTML = `
-      <h3>🧠 ThinkFirst</h3>
+      <h3>ThinkFirst Settings</h3>
       
       <div class="tab-buttons">
-        <button id="settings-tab-stats" class="tab-button active">Stats</button>
-        <button id="settings-tab-settings" class="tab-button">Settings</button>
-        <button id="settings-tab-history" class="tab-button">History</button>
+        <button class="tab-button active" data-tab="stats">Stats</button>
+        <button class="tab-button" data-tab="settings">Settings</button>
+        <button class="tab-button" data-tab="history">History</button>
+        <button class="tab-button" data-tab="profile">Profile</button>
       </div>
       
-      <div id="settings-tab-content-stats" class="tab active">
-        <div class="graph-container">
-          <h4>Last 7 Days Usage</h4>
-          <canvas id="settings-usage-chart"></canvas>
-        </div>
-        
+      <div class="tab active" data-tab="stats">
         <div class="stats">
           <p>
             <span class="stat-label">Today's AI usage</span>
-            <span id="settings-today-usage" class="stat-value">0</span>
+            <span id="think-first-today-usage" class="stat-value">0</span>
           </p>
           <p>
             <span class="stat-label">This week</span>
-            <span id="settings-week-usage" class="stat-value">0</span>
+            <span id="think-first-week-usage" class="stat-value">0</span>
           </p>
           <p>
             <span class="stat-label">This month</span>
-            <span id="settings-month-usage" class="stat-value">0</span>
+            <span id="think-first-month-usage" class="stat-value">0</span>
           </p>
           <p>
             <span class="stat-label">Thinking points</span>
-            <span id="settings-thinking-points" class="stat-value">0</span>
-          </p>
-          <p>
-            <span class="stat-label">Current mode</span>
-            <span id="settings-current-mode" class="stat-value">Normal</span>
+            <span id="think-first-thinking-points" class="stat-value">0</span>
           </p>
         </div>
         
-        <div class="section">
-          <h4>Quick Actions</h4>
-          <div class="controls">
-            <button id="settings-reset-daily-stats">Reset Today's Stats</button>
-          </div>
+        <div class="graph-container">
+          <h4>Last 7 Days Usage</h4>
+          <canvas id="think-first-usage-chart"></canvas>
         </div>
       </div>
       
-      <div id="settings-tab-content-settings" class="tab">
+      <div class="tab" data-tab="settings">
         <div class="section">
           <h4>Monitoring Mode</h4>
           <div class="controls">
-            <select id="settings-mode-select">
+            <select id="think-first-mode-select">
               <option value="relaxed">Relaxed - Just track usage</option>
               <option value="normal">Normal - Intervene on lazy usage</option>
               <option value="strict">Strict - Intervene on all usage</option>
             </select>
-            <div class="mode-description" id="settings-mode-description">
+            <div id="think-first-mode-description" class="mode-description">
               Normal mode will intervene when it detects lazy prompts like "solve this for me" or "write code for this". It encourages you to think before asking AI for help.
             </div>
           </div>
         </div>
         
         <div class="section">
-          <h4>Reset Options</h4>
+          <h4>Daily Goal</h4>
           <div class="controls">
-            <button id="settings-reset-all-stats">Reset All Statistics</button>
-            <button id="settings-reset-thinking-points">Reset Thinking Points</button>
+            <select id="think-first-daily-goal">
+              <option value="3">Easy - 3 points</option>
+              <option value="5">Normal - 5 points</option>
+              <option value="10">Hard - 10 points</option>
+              <option value="20">Expert - 20 points</option>
+            </select>
           </div>
         </div>
       </div>
       
-      <div id="settings-tab-content-history" class="tab">
+      <div class="tab" data-tab="history">
         <div class="section">
           <h4>Recent AI Prompts</h4>
-          <div id="settings-history-list" class="history-list">
-            <!-- History items will be inserted here -->
+          <div id="think-first-history-list" class="history-list">
+            <p style="padding: 12px; color: #666;">Loading history...</p>
           </div>
         </div>
+      </div>
+      
+      <div class="tab" data-tab="profile">
+        <!-- Profile content will be added dynamically based on logged in state -->
+        <div id="think-first-profile-container">Loading profile...</div>
       </div>
     `;
 
@@ -301,30 +296,15 @@
   }
   
   function toggleSettings() {
-    let settingsPanel = document.querySelector('.think-first-settings');
-    if (!settingsPanel) {
-      debugLog('Settings panel not found, reinitializing UI');
-      injectUI();
-      settingsPanel = document.querySelector('.think-first-settings');
-      if (!settingsPanel) {
-        debugLog('Failed to create settings panel');
-        return;
-      }
-    }
+    const settingsPanel = document.querySelector('.think-first-settings');
+    const isHidden = settingsPanel.classList.contains('think-first-hidden');
     
-    if (settingsPanel.classList.contains('think-first-hidden')) {
-      // Ensure data is refreshed before showing the panel
+    if (isHidden) {
+      settingsPanel.classList.remove('think-first-hidden');
+      // Refresh data
       chrome.runtime.sendMessage({ action: "getState" }, (response) => {
-        // Only show panel after we've received data to prevent flickering empty state
         if (response && response.state) {
-          settingsPanel.classList.remove('think-first-hidden');
-          updateSettingsPanel();
-        } else {
-          // If failed to get state, still show panel but log error
-          debugLog('Failed to get extension state, showing panel with potentially stale data');
-          settingsPanel.classList.remove('think-first-hidden');
-          // Try to update with local data anyway
-          updateSettingsPanel();
+          updateSettingsPanel(response.state);
         }
       });
     } else {
@@ -333,204 +313,237 @@
   }
   
   function setupSettingsListeners() {
-    document.getElementById('settings-tab-stats').addEventListener('click', () => switchSettingsTab('stats'));
-    document.getElementById('settings-tab-settings').addEventListener('click', () => switchSettingsTab('settings'));
-    document.getElementById('settings-tab-history').addEventListener('click', () => switchSettingsTab('history'));
-    
-    document.getElementById('settings-reset-daily-stats').addEventListener('click', () => {
-      chrome.runtime.sendMessage({ 
-        action: "resetTodayStats" 
-      }, (response) => {
-        if (response && response.success) {
-          updateSettingsPanel();
-          // showNotification('Today\'s stats have been reset', 2000);
-        }
+    // Tab navigation
+    const tabButtons = document.querySelectorAll('.think-first-settings .tab-button');
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const tabName = button.getAttribute('data-tab');
+        switchSettingsTab(tabName);
       });
     });
     
-    document.getElementById('settings-reset-all-stats').addEventListener('click', () => {
-      chrome.runtime.sendMessage({ 
-        action: "getState" 
-      }, (response) => {
-        if (!response || !response.state) return;
-        
-        const state = response.state;
-        state.usage = {
-          today: 0,
-          week: 0,
-          month: 0,
-          lastReset: {
-            daily: new Date().toISOString(),
-            weekly: new Date().toISOString(),
-            monthly: new Date().toISOString()
-          }
-        };
-        state.thinkingPoints = 0;
-        
-        chrome.storage.local.set({ 'thinkFirstState': state }, updateSettingsPanel);
-      });
-    });
-    
-    document.getElementById('settings-reset-thinking-points').addEventListener('click', () => {
-      chrome.runtime.sendMessage({ 
-        action: "getState" 
-      }, (response) => {
-        if (!response || !response.state) return;
-        
-        const state = response.state;
-        state.thinkingPoints = 0;
-        
-        chrome.storage.local.set({ 'thinkFirstState': state }, updateSettingsPanel);
-      });
-    });
-    
-    document.getElementById('settings-mode-select').addEventListener('change', (e) => {
+    // Mode selection 
+    const modeSelect = document.getElementById('think-first-mode-select');
+    modeSelect?.addEventListener('change', () => {
+      const selectedMode = modeSelect.value;
       chrome.runtime.sendMessage({ 
         action: "setMode", 
-        mode: e.target.value 
-      }, updateSettingsPanel);
-      updateSettingsModeDescription(e.target.value);
+        mode: selectedMode 
+      });
+      updateSettingsModeDescription(selectedMode);
     });
-
-    document.addEventListener('click', (e) => {
-      const settingsPanel = document.querySelector('.think-first-settings');
-      const brainIcon = document.getElementById('think-first-brain');
-      if (settingsPanel && brainIcon && !settingsPanel.contains(e.target) && !brainIcon.contains(e.target)) {
-        settingsPanel.classList.add('think-first-hidden');
+    
+    // Daily goal selection
+    const goalSelect = document.getElementById('think-first-daily-goal');
+    goalSelect?.addEventListener('change', () => {
+      const selectedGoal = parseInt(goalSelect.value);
+      chrome.runtime.sendMessage({ 
+        action: "setDailyGoal", 
+        goal: selectedGoal
+      });
+    });
+    
+    // Listen for profile-related messages
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === "profileChanged") {
+        currentUser = request.profile;
+        updateProfileTab();
+      } else if (request.action === "stateUpdated") {
+        // Refresh data
+        chrome.runtime.sendMessage({ action: "getState" }, (response) => {
+          if (response && response.state) {
+            updateSettingsPanel(response.state);
+          }
+        });
       }
     });
   }
   
   function switchSettingsTab(tabName) {
-    document.querySelectorAll('.think-first-settings .tab').forEach(tab => {
-      tab.classList.remove('active');
+    // Update active tab button
+    const tabButtons = document.querySelectorAll('.think-first-settings .tab-button');
+    tabButtons.forEach(button => {
+      if (button.getAttribute('data-tab') === tabName) {
+        button.classList.add('active');
+      } else {
+        button.classList.remove('active');
+      }
     });
     
-    document.querySelectorAll('.think-first-settings .tab-button').forEach(button => {
-      button.classList.remove('active');
+    // Update active tab content
+    const tabs = document.querySelectorAll('.think-first-settings .tab');
+    tabs.forEach(tab => {
+      if (tab.getAttribute('data-tab') === tabName) {
+        tab.classList.add('active');
+        
+        // Refresh specific tab content if needed
+        if (tabName === 'history') {
+          updateSettingsHistoryList();
+        } else if (tabName === 'profile') {
+          updateProfileTab();
+        }
+      } else {
+        tab.classList.remove('active');
+      }
     });
-    
-    document.getElementById(`settings-tab-content-${tabName}`).classList.add('active');
-    document.getElementById(`settings-tab-${tabName}`).classList.add('active');
   }
   
   function updateSettingsModeDescription(mode) {
-    const description = document.getElementById('settings-mode-description');
+    const descriptionEl = document.getElementById('think-first-mode-description');
+    if (!descriptionEl) return;
+    
     switch (mode) {
       case 'relaxed':
-        description.textContent = 'Relaxed mode tracks your AI usage without interventions. Uses local pattern matching to award thinking points (no AI calls are made in this mode).';
+        descriptionEl.textContent = 'Relaxed mode only tracks your AI usage without any interventions. Use this mode when you want to monitor your usage patterns.';
         break;
       case 'normal':
-        description.textContent = 'Normal mode will intervene when it detects lazy prompts like "solve this for me" or "write code for this". It encourages you to think before asking AI for help.';
+        descriptionEl.textContent = 'Normal mode will intervene when it detects lazy prompts like "solve this for me" or "write code for this". It encourages you to think before asking AI for help.';
         break;
       case 'strict':
-        description.textContent = 'Strict mode intervenes on all AI usage, encouraging you to think through problems thoroughly before consulting AI. Best for learning and skill development.';
+        descriptionEl.textContent = 'Strict mode intervenes on all AI usage, encouraging you to think through problems thoroughly before consulting AI. Best for learning and skill development.';
         break;
     }
   }
   
-  function updateSettingsPanel() {
-    chrome.runtime.sendMessage({ action: "getState" }, (response) => {
-      if (!response || !response.state) return;
-      
-      const state = response.state;
-      
-      const stats = [
-        { id: 'settings-today-usage', value: state.usage.today },
-        { id: 'settings-week-usage', value: state.usage.week },
-        { id: 'settings-month-usage', value: state.usage.month },
-        { id: 'settings-thinking-points', value: state.thinkingPoints }
-      ];
-      
-      stats.forEach(stat => {
-        const element = document.getElementById(stat.id);
-        if (element && element.textContent !== stat.value.toString()) {
-          element.textContent = stat.value;
-          animateStatUpdate(stat.id);
-        }
-      });
-      
-      if (state.usage.history.daily.length >= 0) {
-        createSettingsUsageChart(state.usage.history.daily);
-      }
-      
-      const modeSelect = document.getElementById('settings-mode-select');
-      if (modeSelect && modeSelect.value !== state.mode) {
-        modeSelect.value = state.mode;
-        pulseBrainIcon();
-      }
-      
-      document.getElementById('settings-current-mode').textContent = 
-        state.mode.charAt(0).toUpperCase() + state.mode.slice(1);
-      
-      updateSettingsModeDescription(state.mode);
-      updateSettingsHistoryList();
-    });
+  function updateSettingsPanel(state) {
+    // Update usage stats
+    document.getElementById('think-first-today-usage').textContent = state.usage.today;
+    document.getElementById('think-first-week-usage').textContent = state.usage.week;
+    document.getElementById('think-first-month-usage').textContent = state.usage.month;
+    document.getElementById('think-first-thinking-points').textContent = state.thinkingPoints;
+    
+    // Update mode select
+    document.getElementById('think-first-mode-select').value = state.mode;
+    updateSettingsModeDescription(state.mode);
+    
+    // Update daily goal
+    document.getElementById('think-first-daily-goal').value = state.gamification.dailyGoal;
+    
+    // Update history
+    updateSettingsHistoryList();
+    
+    // Update profile tab
+    currentUser = state.userProfile;
+    updateProfileTab();
+    
+    // Create usage chart
+    if (state.usage.history.daily.length > 0) {
+      createSettingsUsageChart(state.usage.history.daily);
+    }
   }
   
   function truncateText(text, maxLength) {
     if (!text) return '';
     if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+    return text.substr(0, maxLength) + '...';
   }
   
   function updateSettingsHistoryList() {
     chrome.runtime.sendMessage({ action: "getState" }, (response) => {
-      if (!response || !response.state) {
-        debugLog('No state received for history update');
+      if (!response || !response.state) return;
+      
+      const historyList = document.getElementById('think-first-history-list');
+      if (!historyList) return;
+      
+      historyList.innerHTML = '';
+      
+      if (!response.state.history || response.state.history.length === 0) {
+        historyList.innerHTML = '<p style="padding: 12px; color: #666;">No AI prompts recorded yet.</p>';
         return;
       }
       
-      const state = response.state;
-      const historyContainer = document.getElementById('settings-history-list');
-      if (!historyContainer) {
-        debugLog('History container not found');
-        return;
-      }
+      // Get the most recent 10 items
+      const recentHistory = [...response.state.history].reverse().slice(0, 10);
       
-      try {
-        historyContainer.innerHTML = '';
+      recentHistory.forEach(item => {
+        const historyItem = document.createElement('div');
+        historyItem.className = 'history-item';
         
-        if (!state.history || state.history.length === 0) {
-          historyContainer.innerHTML = '<p style="padding: 12px; color: #666;">No AI prompts recorded yet.</p>';
-          return;
-        }
-        
-        const sortedHistory = [...state.history]
-          .reverse()
-          .slice(0, 50);
-        
-        debugLog('Updating history list with entries:', sortedHistory.length);
-        
-        sortedHistory.forEach(item => {
-          try {
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            
-            const date = new Date(item.timestamp);
-            const formattedDate = date.toLocaleDateString(undefined, {
-              weekday: 'short',
-              month: 'short', 
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-            
-            historyItem.innerHTML = `
-              <div class="timestamp">${formattedDate} - ${item.site || 'Unknown site'}</div>
-              <div class="prompt">${truncateText(item.prompt, 100)}</div>
-            `;
-            
-            historyContainer.appendChild(historyItem);
-          } catch (err) {
-            debugLog('Error creating history item:', err);
-          }
+        // Parse the timestamp
+        const date = new Date(item.timestamp);
+        const formattedTime = date.toLocaleString(undefined, { 
+          weekday: 'short',
+          month: 'short', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
         });
-      } catch (err) {
-        debugLog('Error updating history list:', err);
-        historyContainer.innerHTML = '<p style="padding: 12px; color: #666;">Error loading history.</p>';
-      }
+        
+        historyItem.innerHTML = `
+          <div class="timestamp">${formattedTime} - ${item.site}</div>
+          <div class="prompt">${truncateText(item.prompt, 70)}</div>
+        `;
+        
+        historyList.appendChild(historyItem);
+      });
     });
+  }
+  
+  function updateProfileTab() {
+    const profileContainer = document.getElementById('think-first-profile-container');
+    if (!profileContainer) return;
+    
+    if (currentUser) {
+      // Logged in state
+      const initial = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : '?';
+      const photoHTML = currentUser.photoURL ? 
+        `<img src="${currentUser.photoURL}" alt="${currentUser.displayName}">` :
+        initial;
+        
+      profileContainer.innerHTML = `
+        <div class="section">
+          <h4>Your Profile</h4>
+          <div class="user-profile">
+            <div class="profile-avatar">
+              ${photoHTML}
+            </div>
+            <div class="profile-info">
+              <div class="profile-name">${currentUser.displayName || 'User'}</div>
+              <div class="profile-email">${currentUser.email || ''}</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <h4>Cloud Sync</h4>
+          <p class="mode-description">
+            Your usage data is being synced across all your devices where you're signed in.
+          </p>
+          <button id="think-first-sync-now">Sync Now</button>
+          <button id="think-first-sign-out">Sign Out</button>
+        </div>
+      `;
+      
+      // Add event listeners
+      document.getElementById('think-first-sync-now')?.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: "syncData" });
+        showNotification('Syncing your data...', 2000);
+      });
+      
+      document.getElementById('think-first-sign-out')?.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: "signOut" });
+        showNotification('Signed out successfully');
+      });
+      
+    } else {
+      // Login state
+      profileContainer.innerHTML = `
+        <div class="section">
+          <h4>Sign In</h4>
+          <p class="mode-description">
+            Sign in to sync your ThinkFirst data across all your devices.
+            <br><br>
+            Please use the extension popup to sign in or create an account.
+          </p>
+          <button id="think-first-open-popup">Open Extension Popup</button>
+        </div>
+      `;
+      
+      document.getElementById('think-first-open-popup')?.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: "openPopup" });
+        showNotification('Please click the ThinkFirst icon in your browser toolbar');
+      });
+    }
   }
   
   function showNotification(message, duration = 3000) {
@@ -632,48 +645,24 @@
   }
   
   function initialize() {
-    if (isSetup) {
-      debugLog('Already initialized');
-      return;
-    }
-
-    try {
-      injectUI();
-      monitorInputs();
-      checkPendingIntervention();
-      checkNotificationFlag();
-      
-      // Add visibility change listener to refresh state when tab becomes visible again
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-          debugLog('Tab visibility changed to visible, refreshing state');
-          safeSendMessage({ action: "getState" }).then(response => {
-            if (response && response.state) {
-              // Update the state in UI, even if settings panel is closed
-              updateSettingsPanel();
-            }
-          });
-        }
-      });
-      
-      let lastUrl = location.href; 
-      new MutationObserver(() => {
-        const url = location.href;
-        if (url !== lastUrl) {
-          lastUrl = url;
-          monitorInputs();
-          checkPendingIntervention();
-          checkNotificationFlag();
-        }
-      }).observe(document, {subtree: true, childList: true});
-
-      isSetup = true;
-    } catch (err) {
-      debugLog('Error during initialization:', err);
-      isSetup = false;
-    }
+    injectUI();
+    monitorInputs();
+    checkPendingIntervention();
+    checkNotificationFlag();
+    
+    let lastUrl = location.href; 
+    new MutationObserver(() => {
+      const url = location.href;
+      if (url !== lastUrl) {
+        lastUrl = url;
+        monitorInputs();
+        checkPendingIntervention();
+        checkNotificationFlag();
+      }
+    }).observe(document, {subtree: true, childList: true});
   }
   
+  // Initialize the extension
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize);
   } else {
@@ -890,15 +879,7 @@
       /give me a/i,
       /create a/i,
       /write a function.*that/i, 
-      /function.*takes.*returns/i,
-      /generate a/i,
-      /implement a/i,
-      /build me/i,
-      /write an essay/i,
-      /write a story/i,
-      /finish this/i,
-      /answer the following/i,
-      /summarize this/i
+      /function.*takes.*returns/i  
     ];
     
     const isLazy = lazyPatterns.some(pattern => pattern.test(text));
@@ -924,17 +905,7 @@
       /reasoning behind/i,
       /thought process/i,
       /best practices/i,
-      /help me learn/i,
-      /can you elaborate/i,
-      /could you clarify/i,
-      /what is the difference between/i,
-      /how would you compare/i,
-      /can you explain the reasoning/i,
-      /how can I learn/i,
-      /why is it important/i,
-      /what approach should I take/i,
-      /how should I think about/i,
-      /walk me through/i
+      /help me learn/i
     ];
     
     return goodPatterns.some(pattern => pattern.test(text));
@@ -1018,44 +989,6 @@
             reason: "You are in strict mode. All prompts require reflection before submission."
           });
           return false;
-        }
-        
-        // For relaxed mode, use local heuristics instead of AI API calls
-        if (currentState.mode === 'relaxed') {
-          debugLog('Relaxed mode: Using local pattern matching instead of AI API');
-          
-          if (isGoodThinkingPrompt(valueToUse)) {
-            debugLog('Good thinking prompt detected via pattern matching!');
-            showBrainCelebration();
-            showNotification('🌟 Great question! Keep thinking deeply!');
-            chrome.runtime.sendMessage({ 
-              action: "logThinking", 
-              points: 2 
-            });
-          }
-          
-          // Continue with normal submission - no interventions in relaxed mode
-          lastSubmittedPrompt = valueToUse;
-          lastSubmissionTimestamp = now;
-          
-          await safeSendMessage({
-            action: "promptDetected",
-            promptText: valueToUse,
-            site: siteDetected
-          });
-          
-          if (input && input.form && !interventionActive) {
-            debugLog('Submitting form manually');
-            if (originalSubmitHandler) {
-              originalSubmitHandler.call(input.form);
-            } else {
-              const submitEvent = new Event('submit', { bubbles: true });
-              submitEvent.allowSubmit = true;
-              input.form.dispatchEvent(submitEvent);
-            }
-          }
-          
-          return !interventionActive;
         }
 
         const result = await safeSendMessage({
@@ -1198,24 +1131,24 @@
   }
   
   function createSettingsUsageChart(data) {
-    const canvas = document.getElementById('settings-usage-chart');
+    const canvas = document.getElementById('think-first-usage-chart');
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
     
-    if (window.settingsUsageChart) {
-      window.settingsUsageChart.destroy();
+    // Clear any existing chart 
+    if (window.thinkFirstChart) {
+      window.thinkFirstChart.destroy();
     }
     
-    // Get today's date
+    // Format data for the chart
     const today = new Date();
     const todayDateStr = formatLocalDate(today);
     
+    // Process data ensuring dates are handled correctly
     const processedData = data.map(entry => {
       const [year, month, day] = entry.date.split('-').map(num => parseInt(num, 10));
       const localDate = new Date(year, month - 1, day);
-      // Check if this is today
       const isToday = entry.date === todayDateStr;
       return {
         ...entry,
@@ -1224,50 +1157,46 @@
       };
     });
     
-    // Sort data by date to ensure correct ordering - most recent at the end
+    // Sort by date
     processedData.sort((a, b) => a.localDate - b.localDate);
     
-    // Get only the last 7 days of data, ensuring we have the most recent 7 days only
+    // Get unique dates (in case there are duplicates)
     const uniqueDates = [...new Map(
       processedData.map(entry => [entry.date, entry])
     ).values()];
     
-    const lastWeekData = uniqueDates.slice(-7);
+    // Get last 7 days of data
+    const last7Days = uniqueDates.slice(-7);
     
-    const dates = lastWeekData.map(d => {
+    // Format dates as days of the week
+    const labels = last7Days.map(d => {
       return d.localDate.toLocaleDateString(undefined, { weekday: 'short' });
     });
     
-    // Store which index corresponds to today for styling
-    const todayIndex = lastWeekData.findIndex(d => d.isToday);
+    const counts = last7Days.map(d => d.count);
     
-    const counts = lastWeekData.map(d => d.count);
+    // Today's index for styling
+    const todayIndex = last7Days.findIndex(d => d.isToday);
     
-    // Create background colors array - highlight today's bar
-    const backgroundColors = lastWeekData.map(d => 
+    // Create colors array
+    const backgroundColor = last7Days.map(d => 
       d.isToday ? '#5b96f0' : '#4a86e8'
     );
     
-    const borderColors = lastWeekData.map(d => 
+    const borderColor = last7Days.map(d => 
       d.isToday ? '#3a78e0' : '#3b78e7'
     );
     
-    console.log('Settings Chart data:', {
-      rawDates: lastWeekData.map(d => d.date),
-      formattedDates: dates,
-      counts,
-      today: todayDateStr
-    });
-    
-    window.settingsUsageChart = new Chart(ctx, {
+    // Create chart
+    window.thinkFirstChart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: dates,
+        labels: labels,
         datasets: [{
           label: 'AI Usage',
           data: counts,
-          backgroundColor: backgroundColors,
-          borderColor: borderColors,
+          backgroundColor: backgroundColor,
+          borderColor: borderColor,
           borderWidth: 1,
           borderRadius: 4,
           maxBarThickness: 35
@@ -1284,9 +1213,8 @@
             callbacks: {
               title: function(tooltipItems) {
                 const index = tooltipItems[0].dataIndex;
-                const datapoint = lastWeekData[index];
+                const datapoint = last7Days[index];
                 if (datapoint) {
-                  // Show full date format in tooltip
                   return `${tooltipItems[0].label} (${datapoint.localDate.toLocaleDateString()})`;
                 }
                 return tooltipItems[0].label;
@@ -1306,42 +1234,17 @@
             ticks: {
               stepSize: 1,
               precision: 0
-            },
-            grid: {
-              display: true,
-              drawBorder: false
             }
           },
           x: {
             grid: {
-              display: false,
-              drawBorder: false
-            },
-            ticks: {
-              font: function(context) {
-                // Make today's label bold
-                if (todayIndex !== -1 && context.index === todayIndex) {
-                  return {
-                    weight: 'bold',
-                    size: 11
-                  };
-                }
-                return {
-                  size: 11
-                };
-              }
+              display: false
             }
-          }
-        },
-        layout: {
-          padding: {
-            left: 5,
-            right: 5,
-            top: 10,
-            bottom: 5
           }
         }
       }
     });
   }
+  
+
   

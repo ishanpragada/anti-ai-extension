@@ -68,6 +68,32 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
     
+    document.getElementById('reset-today-stats').addEventListener('click', () => {
+      console.log('Reset today stats button clicked');
+      chrome.runtime.sendMessage({ 
+        action: "resetTodayStats" 
+      }, (response) => {
+        console.log('Reset today stats response:', response);
+        if (response && response.success) {
+          // Update the UI first
+          updateUI();
+          
+          // Add visual feedback that the reset was successful
+          ['today-usage', 'week-usage', 'month-usage'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+              // Add the animation class
+              element.classList.add('updating');
+              // Remove it after animation completes
+              setTimeout(() => {
+                element.classList.remove('updating');
+              }, 1000);
+            }
+          });
+        }
+      });
+    });
+    
     document.getElementById('mode-select').addEventListener('change', (e) => {
       chrome.runtime.sendMessage({ 
         action: "setMode", 
@@ -83,20 +109,74 @@ document.addEventListener('DOMContentLoaded', function() {
         usageChart.destroy();
       }
       
-      const dates = data.map(d => new Date(d.date).toLocaleDateString());
-      const counts = data.map(d => d.count);
+      // Get today's date
+      const today = new Date();
+      const todayDateStr = formatLocalDate(today);
+      
+      // Make sure all dates are correctly parsed with the local timezone
+      const processedData = data.map(entry => {
+        // Ensure date is in YYYY-MM-DD format
+        const [year, month, day] = entry.date.split('-').map(num => parseInt(num, 10));
+        // Create date manually to avoid timezone issues
+        const localDate = new Date(year, month - 1, day);
+        // Check if this is today
+        const isToday = entry.date === todayDateStr;
+        return {
+          ...entry,
+          localDate,
+          isToday
+        };
+      });
+      
+      // Sort data by date to ensure correct ordering - most recent at the end
+      processedData.sort((a, b) => a.localDate - b.localDate);
+      
+      // Get only the last 7 days of data, ensuring we have the most recent 7 days only
+      const uniqueDates = [...new Map(
+        processedData.map(entry => [entry.date, entry])
+      ).values()];
+      
+      const lastWeekData = uniqueDates.slice(-7);
+      
+      // Format dates as days of the week
+      const dates = lastWeekData.map(d => {
+        return d.localDate.toLocaleDateString(undefined, { weekday: 'short' });
+      });
+      
+      // Store which index corresponds to today for styling
+      const todayIndex = lastWeekData.findIndex(d => d.isToday);
+      
+      const counts = lastWeekData.map(d => d.count);
+      
+      // Create background colors array - highlight today's bar
+      const backgroundColors = lastWeekData.map(d => 
+        d.isToday ? '#5b96f0' : '#4a86e8'
+      );
+      
+      const borderColors = lastWeekData.map(d => 
+        d.isToday ? '#3a78e0' : '#3b78e7'
+      );
+      
+      // Log the dates we're showing for debugging
+      console.log('Chart data:', {
+        rawDates: lastWeekData.map(d => d.date),
+        formattedDates: dates,
+        counts,
+        today: todayDateStr
+      });
       
       usageChart = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
           labels: dates,
           datasets: [{
             label: 'AI Usage',
             data: counts,
-            borderColor: '#4a86e8',
-            backgroundColor: 'rgba(74, 134, 232, 0.1)',
-            tension: 0.4,
-            fill: true
+            backgroundColor: backgroundColors,
+            borderColor: borderColors,
+            borderWidth: 1,
+            borderRadius: 4,
+            maxBarThickness: 35
           }]
         },
         options: {
@@ -105,13 +185,58 @@ document.addEventListener('DOMContentLoaded', function() {
           plugins: {
             legend: {
               display: false
+            },
+            tooltip: {
+              callbacks: {
+                title: function(tooltipItems) {
+                  const index = tooltipItems[0].dataIndex;
+                  const datapoint = lastWeekData[index];
+                  if (datapoint) {
+                    // Show full date format in tooltip
+                    return `${tooltipItems[0].label} (${datapoint.localDate.toLocaleDateString()})`;
+                  }
+                  return tooltipItems[0].label;
+                },
+                label: function(context) {
+                  // Only show tooltip for bars with values greater than zero
+                  if (context.raw === 0) {
+                    return '';
+                  }
+                  return `Usage: ${context.raw}`;
+                }
+              }
             }
           },
           scales: {
             y: {
               beginAtZero: true,
               ticks: {
-                stepSize: 1
+                stepSize: 1,
+                precision: 0
+              },
+              grid: {
+                display: true,
+                drawBorder: false
+              }
+            },
+            x: {
+              grid: {
+                display: false,
+                drawBorder: false
+              },
+              ticks: {
+                font: function(context) {
+                  // Make today's label bold
+                  if (todayIndex !== -1 && context.index === todayIndex) {
+                    return {
+                      weight: 'bold',
+                      size: 11
+                    };
+                  }
+                  return {
+                    size: 11
+                  };
+                }
               }
             }
           }
@@ -123,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const description = document.getElementById('mode-description');
       switch (mode) {
         case 'relaxed':
-          description.textContent = 'Relaxed mode only tracks your AI usage without any interventions. Use this mode when you want to monitor your usage patterns.';
+          description.textContent = 'Relaxed mode tracks your AI usage without interventions. Uses local pattern matching to award thinking points (no AI calls are made in this mode).';
           break;
         case 'normal':
           description.textContent = 'Normal mode will intervene when it detects lazy prompts like "solve this for me" or "write code for this". It encourages you to think before asking AI for help.';
@@ -132,6 +257,20 @@ document.addEventListener('DOMContentLoaded', function() {
           description.textContent = 'Strict mode intervenes on all AI usage, encouraging you to think through problems thoroughly before consulting AI. Best for learning and skill development.';
           break;
       }
+    }
+    
+    // Format a date as YYYY-MM-DD in local time zone (same as background.js)
+    function formatLocalDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Helper function to parse a YYYY-MM-DD date string into a Date object (same as background.js)
+    function parseLocalDate(dateStr) {
+      const [year, month, day] = dateStr.split('-').map(num => parseInt(num, 10));
+      return new Date(year, month - 1, day);
     }
     
     function updateUI() {
@@ -156,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('current-streak').textContent = state.gamification.currentStreak;
         document.getElementById('longest-streak').textContent = state.gamification.longestStreak;
         
-        const today = new Date().toISOString().split('T')[0];
+        const today = formatLocalDate(new Date());
         const todayProgress = state.gamification.dailyProgress.find(d => d.date === today);
         const currentPoints = todayProgress ? todayProgress.points : 0;
         const goalPercent = (currentPoints / state.gamification.dailyGoal) * 100;
@@ -170,6 +309,8 @@ document.addEventListener('DOMContentLoaded', function() {
         updateModeDescription(state.mode);
         
         if (state.usage.history.daily.length > 0) {
+          // Log current data for debugging
+          console.log('Daily history before chart creation:', state.usage.history.daily);
           createUsageChart(state.usage.history.daily);
         }
         
@@ -196,8 +337,17 @@ document.addEventListener('DOMContentLoaded', function() {
           const historyItem = document.createElement('div');
           historyItem.className = 'history-item';
           
+          // Parse the ISO date string
           const date = new Date(item.timestamp);
-          const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+          
+          // Format the date with more details
+          const formattedDate = date.toLocaleDateString(undefined, {
+            weekday: 'short',
+            month: 'short', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
           
           historyItem.innerHTML = `
             <div class="timestamp">${formattedDate} - ${item.site}</div>

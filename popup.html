@@ -198,7 +198,7 @@
     }
     
     .history-list::-webkit-scrollbar-thumb:hover {
-      background: #ccc;
+      background: #a0a0a0;
     }
 
     .mode-description {
@@ -327,6 +327,24 @@
       max-height: 500px;
       overflow-y: auto;
     }
+    
+    /* Stats Update Animation */
+    @keyframes statUpdate {
+      0% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.2);
+        color: #4a86e8;
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    
+    .stat-value.updating {
+      animation: statUpdate 0.5s ease-out;
+    }
   </style>
 </head>
 <body>
@@ -375,6 +393,7 @@
     </div>
     
     <div class="graph-container">
+      <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #555;">Last 7 Days Usage</h4>
       <canvas id="usage-chart"></canvas>
     </div>
     
@@ -432,6 +451,7 @@
     <div class="section">
       <h2>Reset Options</h2>
       <div class="controls">
+        <button id="reset-today-stats">Reset Today's Stats</button>
         <button id="reset-all-stats">Reset All Statistics</button>
         <button id="reset-thinking-points">Reset Thinking Points</button>
       </div>
