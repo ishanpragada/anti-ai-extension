@@ -48,6 +48,17 @@ let state = {
 chrome.storage.local.get('thinkFirstState', (data) => {
   if (data.thinkFirstState) {
     state = { ...state, ...data.thinkFirstState };
+    
+    // Ensure the daily history is sorted before checking counters
+    ensureSortedDailyHistory();
+    
+    // Recalculate the weekly count based on the loaded history
+    calculateWeeklyCount();
+    
+    // Recalculate the monthly count based on the loaded history
+    calculateMonthlyCount();
+    
+    // Now check and reset counters as needed
     checkAndResetCounters();
   } else {
     chrome.storage.local.set({ 'thinkFirstState': state });
@@ -122,31 +133,20 @@ function checkAndResetCounters() {
   const lastWeek = getWeekNumber(lastWeekly);
   const lastMonth = formatLocalDate(lastWeekly).slice(0, 7);
   
-  // Check if we've moved to a new week (based on calendar week)
-  if (currentWeek !== lastWeek) {
-    console.log('Week changed from', lastWeek, 'to', currentWeek);
-    state.usage.week = 0;
-    state.usage.lastReset.weekly = now.toISOString();
-    
-    // Add the new week to history with count 0
-    let weeklyEntry = state.usage.history.weekly.find(w => w.week === currentWeek);
-    if (!weeklyEntry) {
-      state.usage.history.weekly.push({ week: currentWeek, count: 0 });
-    }
-  }
+  console.log('Week/Month check:', {
+    currentWeek,
+    lastWeek,
+    currentMonth,
+    lastMonth,
+    weeklyHistory: state.usage.history.weekly,
+    monthlyHistory: state.usage.history.monthly
+  });
+  
+  // Recalculate weekly count using rolling 7-day window
+  calculateWeeklyCount();
 
-  // Check if we've moved to a new month
-  if (currentMonth !== lastMonth) {
-    console.log('Month changed from', lastMonth, 'to', currentMonth);
-    state.usage.month = 0;
-    state.usage.lastReset.monthly = now.toISOString();
-    
-    // Add the new month to history with count 0
-    let monthlyEntry = state.usage.history.monthly.find(m => m.month === currentMonth);
-    if (!monthlyEntry) {
-      state.usage.history.monthly.push({ month: currentMonth, count: 0 });
-    }
-  }
+  // Recalculate monthly count based on daily history
+  calculateMonthlyCount();
 
   updateState();
 }
@@ -166,8 +166,35 @@ function getDaysDifference(date1, date2) {
 
 // Helper function to parse a YYYY-MM-DD date string into a Date object
 function parseLocalDate(dateStr) {
-  const [year, month, day] = dateStr.split('-').map(num => parseInt(num, 10));
-  return new Date(year, month - 1, day);
+  if (!dateStr || typeof dateStr !== 'string') {
+    console.error('Invalid date string:', dateStr);
+    return new Date(); // Return today as fallback
+  }
+  
+  try {
+    // Split the date string and construct a Date object
+    const [year, month, day] = dateStr.split('-').map(num => parseInt(num, 10));
+    
+    // Validate date components
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      console.error('Invalid date components:', { year, month, day });
+      return new Date();
+    }
+    
+    // Create date with time set to midnight
+    const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+    
+    // Verify the date is valid
+    if (isNaN(date.getTime())) {
+      console.error('Date is invalid after parsing:', dateStr);
+      return new Date();
+    }
+    
+    return date;
+  } catch (error) {
+    console.error('Error parsing date:', error);
+    return new Date();
+  }
 }
 
 // Fill in missing days between two dates in the history array
@@ -224,16 +251,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log('Resetting today stats');
       console.log('Before reset - today count:', state.usage.today);
       
-      // Save current today value to subtract from weekly/monthly counts
+      // Save current today value to subtract from monthly counts
       const todayValue = state.usage.today;
       
       // Reset today's counter
       state.usage.today = 0;
       state.usage.lastReset.daily = new Date().toISOString();
-      
-      // Subtract today's count from week and month counts
-      state.usage.week = Math.max(0, state.usage.week - todayValue);
-      state.usage.month = Math.max(0, state.usage.month - todayValue);
       
       // Find today's entry in history and reset it or create a new one
       const today = formatLocalDate(new Date());
@@ -256,34 +279,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
       }
       
-      // Update weekly and monthly history to reflect the reset
-      const thisWeek = getWeekNumber(new Date());
+      // Update monthly history to reflect the reset
       const thisMonth = formatLocalDate(new Date()).slice(0, 7);
-      
-      let weeklyEntry = state.usage.history.weekly.find(w => w.week === thisWeek);
-      if (weeklyEntry) {
-        weeklyEntry.count = Math.max(0, weeklyEntry.count - todayValue);
-      }
       
       let monthlyEntry = state.usage.history.monthly.find(m => m.month === thisMonth);
       if (monthlyEntry) {
         monthlyEntry.count = Math.max(0, monthlyEntry.count - todayValue);
       }
       
-      // Verify consistency between counts and history
-      const weeklyCount = state.usage.history.weekly.reduce((sum, entry) => sum + entry.count, 0);
-      const monthlyCount = state.usage.history.monthly.reduce((sum, entry) => sum + entry.count, 0);
+      // Recalculate the weekly count with our rolling 7-day window
+      calculateWeeklyCount();
       
-      // If there's a discrepancy, update the counts to match the history
-      if (state.usage.week !== weeklyCount) {
-        console.log('Weekly count mismatch after reset. History:', weeklyCount, 'Count:', state.usage.week);
-        state.usage.week = weeklyCount;
-      }
-      
-      if (state.usage.month !== monthlyCount) {
-        console.log('Monthly count mismatch after reset. History:', monthlyCount, 'Count:', state.usage.month);
-        state.usage.month = monthlyCount;
-      }
+      // Recalculate the monthly count
+      calculateMonthlyCount();
       
       console.log('After reset - state:', JSON.stringify({
         today: state.usage.today,
@@ -339,13 +347,17 @@ function handlePrompt(promptText, site) {
   checkAndResetCounters();
   
   state.usage.today++;
-  state.usage.week++;
-  state.usage.month++;
   
   const now = new Date();
   const today = formatLocalDate(now);
-  const thisWeek = getWeekNumber(now);
   const thisMonth = formatLocalDate(now).slice(0, 7); // YYYY-MM
+  
+  console.log('Before prompt update:', {
+    today,
+    thisMonth,
+    monthlyHistory: state.usage.history.monthly,
+    currentMonthCount: state.usage.month
+  });
   
   // Update daily history
   let dailyEntry = state.usage.history.daily.find(d => d.date === today);
@@ -362,14 +374,6 @@ function handlePrompt(promptText, site) {
     });
   }
   
-  // Update weekly history
-  let weeklyEntry = state.usage.history.weekly.find(w => w.week === thisWeek);
-  if (weeklyEntry) {
-    weeklyEntry.count++;
-  } else {
-    state.usage.history.weekly.push({ week: thisWeek, count: 1 });
-  }
-  
   // Update monthly history
   let monthlyEntry = state.usage.history.monthly.find(m => m.month === thisMonth);
   if (monthlyEntry) {
@@ -380,23 +384,18 @@ function handlePrompt(promptText, site) {
   
   // Ensure we keep only the last 30 days of data
   state.usage.history.daily = state.usage.history.daily.slice(-30);
-  state.usage.history.weekly = state.usage.history.weekly.slice(-12);
-  state.usage.history.monthly = state.usage.history.monthly.slice(-12);
-  
-  // Verify consistency between counts and history
-  const weeklyCount = state.usage.history.weekly.reduce((sum, entry) => sum + entry.count, 0);
-  const monthlyCount = state.usage.history.monthly.reduce((sum, entry) => sum + entry.count, 0);
-  
-  // If there's a discrepancy, update the counts to match the history
-  if (state.usage.week !== weeklyCount) {
-    console.log('Weekly count mismatch. History:', weeklyCount, 'Count:', state.usage.week);
-    state.usage.week = weeklyCount;
-  }
-  
-  if (state.usage.month !== monthlyCount) {
-    console.log('Monthly count mismatch. History:', monthlyCount, 'Count:', state.usage.month);
-    state.usage.month = monthlyCount;
-  }
+
+  // Calculate the weekly total using our rolling 7-day window
+  calculateWeeklyCount();
+
+  // Calculate the monthly total based on daily history
+  calculateMonthlyCount();
+
+  console.log('After prompt update:', {
+    dailyHistory: state.usage.history.daily,
+    monthlyHistory: state.usage.history.monthly,
+    calculatedMonthlyCount: state.usage.month
+  });
   
   state.lastPrompt = promptText;
   
@@ -452,12 +451,96 @@ function handlePrompt(promptText, site) {
   }
 }
 
+// Modified to use a rolling 7-day window instead of ISO weeks
 function getWeekNumber(d) {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-  const weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
-  return d.getUTCFullYear() + '-W' + weekNo;
+  // Get the date as YYYY-MM-DD
+  const dateStr = formatLocalDate(d);
+  
+  // This makes each day have its own "week" identifier
+  // We'll use the date as the identifier, and we'll count all prompts 
+  // from the last 7 days in the "week" count
+  return dateStr;
+}
+
+// Function to ensure daily history is sorted by date
+function ensureSortedDailyHistory() {
+  if (!state.usage.history.daily || !Array.isArray(state.usage.history.daily)) {
+    console.error('Daily history is not an array:', state.usage.history.daily);
+    state.usage.history.daily = [];
+    return;
+  }
+
+  // First, filter out any invalid entries
+  state.usage.history.daily = state.usage.history.daily.filter(entry => {
+    return entry && entry.date && typeof entry.date === 'string' && 
+           !isNaN(parseLocalDate(entry.date).getTime());
+  });
+
+  // Sort the history by date
+  state.usage.history.daily.sort((a, b) => {
+    try {
+      const dateA = parseLocalDate(a.date);
+      const dateB = parseLocalDate(b.date);
+      return dateA - dateB;
+    } catch (error) {
+      console.error('Error comparing dates:', error);
+      return 0;
+    }
+  });
+
+  console.log('Daily history sorted:', state.usage.history.daily.map(e => e.date));
+}
+
+// Calculate the weekly count as a sum of the last 7 days
+function calculateWeeklyCount() {
+  // Ensure daily history is properly sorted before calculating
+  ensureSortedDailyHistory();
+  
+  const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 6); // 7 days including today
+  
+  // Set times to midnight for consistent comparison
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+  
+  console.log('Weekly window:', {
+    from: formatLocalDate(sevenDaysAgo),
+    to: formatLocalDate(today),
+    allDailyEntries: state.usage.history.daily.map(e => e.date)
+  });
+  
+  // Filter daily history to get only the last 7 days
+  const last7DaysEntries = state.usage.history.daily.filter(entry => {
+    const entryDate = parseLocalDate(entry.date);
+    // Set time to midnight for consistent comparison
+    entryDate.setHours(0, 0, 0, 0);
+    
+    // Debug log to see what's being compared
+    const isIncluded = entryDate >= sevenDaysAgo;
+    
+    console.log(`Entry date ${entry.date} (${entryDate}) >= sevenDaysAgo ${formatLocalDate(sevenDaysAgo)} (${sevenDaysAgo}): ${isIncluded}`);
+    
+    return isIncluded;
+  });
+  
+  // Sum the counts for the last 7 days
+  const weeklyTotal = last7DaysEntries.reduce((sum, entry) => sum + entry.count, 0);
+  
+  // Update the week count
+  state.usage.week = weeklyTotal;
+  
+  // For consistency, update the weekly history to match the rolling window approach
+  state.usage.history.weekly = [{
+    week: formatLocalDate(today),
+    count: weeklyTotal
+  }];
+  
+  console.log('Recalculated weekly count based on 7-day rolling window:', {
+    weeklyTotal,
+    countedDays: last7DaysEntries.map(e => e.date)
+  });
+  
+  return weeklyTotal;
 }
 
 function handleThinkingPoints(points) {
@@ -718,5 +801,39 @@ function fallbackAnalyzePrompt(promptText) {
             isLearning ? 'Pattern matched with learning-focused prompt' : 
             'No specific patterns detected'
   };
+}
+
+// Function to calculate the monthly count based on daily history
+function calculateMonthlyCount() {
+  const now = new Date();
+  const thisMonth = formatLocalDate(now).slice(0, 7); // YYYY-MM
+  
+  // Calculate count based on daily history
+  const currentMonthEntries = state.usage.history.daily.filter(entry => 
+    entry.date.startsWith(thisMonth)
+  );
+  const monthlyTotal = currentMonthEntries.reduce((sum, entry) => sum + entry.count, 0);
+  
+  // Update the month count
+  state.usage.month = monthlyTotal;
+  
+  // Update or add the monthly history entry
+  let monthlyEntry = state.usage.history.monthly.find(m => m.month === thisMonth);
+  if (monthlyEntry) {
+    monthlyEntry.count = monthlyTotal;
+  } else {
+    state.usage.history.monthly.push({ month: thisMonth, count: monthlyTotal });
+  }
+  
+  // Ensure we keep only the last 12 months of data
+  state.usage.history.monthly = state.usage.history.monthly.slice(-12);
+  
+  console.log('Recalculated monthly count:', {
+    month: thisMonth,
+    count: monthlyTotal,
+    entriesIncluded: currentMonthEntries.map(e => e.date)
+  });
+  
+  return monthlyTotal;
 }
   
